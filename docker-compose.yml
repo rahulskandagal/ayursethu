@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ayursethu
+      POSTGRES_PASSWORD: ayursethu
+      POSTGRES_DB: ayursethu
+    ports:
+      - "5432:5432"
+    volumes:
+      - ayursethu_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ayursethu"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://ayursethu:ayursethu@postgres:5432/ayursethu?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-to-a-long-random-string}
+      JWT_EXPIRES_IN: 7d
+      PORT: 4000
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      UPLOADS_DIR: /app/uploads
+    ports:
+      - "4000:4000"
+    volumes:
+      - ayursethu_uploads:/app/uploads
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  ayursethu_pgdata:
+  ayursethu_uploads:

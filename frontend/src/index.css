@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-cream-50 text-forest-900 font-sans antialiased;
+}
+
+/* Elderly-accessible mode: larger text and stronger contrast across the app. */
+html.a11y-large {
+  font-size: 19px;
+}
+
+html.a11y-large body {
+  @apply text-black;
+}
+
+html.a11y-large a,
+html.a11y-large button {
+  text-underline-offset: 2px;
+}
+
+html.a11y-large .text-xs {
+  font-size: 0.9rem;
+}
+
+html.a11y-large .text-sm {
+  font-size: 1rem;
+}

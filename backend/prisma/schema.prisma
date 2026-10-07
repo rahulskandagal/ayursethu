@@ -1,0 +1,615 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  PATIENT
+  STUDENT
+  DOCTOR
+  PHARMACY
+  ADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum DosageForm {
+  TABLET
+  CAPSULE
+  POWDER
+  OIL
+  SYRUP
+  KASHAYA
+  ASAVA_ARISHTA
+  VATI_GUTIKA
+  GHRITA
+  AVALEHA
+  BHASMA
+  OTHER
+}
+
+enum FormulationCategory {
+  CLASSICAL
+  PROPRIETARY
+  SINGLE_HERB
+  HERBAL_OIL
+  CHURNA
+  KASHAYA_KWATHA
+  ASAVA_ARISHTA
+  VATI_GUTIKA
+  GHRITA
+  AVALEHA
+  BHASMA
+  RASAYANA
+}
+
+enum AvailabilityRequestStatus {
+  OPEN
+  RESPONDED
+  CLOSED
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+enum NotificationType {
+  AVAILABILITY_RESPONSE
+  PHARMACY_APPROVED
+  PHARMACY_REJECTED
+  MEDICINE_VERIFIED
+  REPORT_UPDATE
+  STOCK_ALERT
+  RESERVATION_UPDATE
+  GENERAL
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
+}
+
+// ---------------------------------------------------------------------------
+// Core identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role
+  phone        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patientProfile  PatientProfile?
+  studentProfile  StudentProfile?
+  doctorProfile   DoctorProfile?
+  pharmacy        Pharmacy?
+  bookmarks       Bookmark[]
+  reviews         Review[]
+  notifications   Notification[]
+  reports         Report[]
+  quizAttempts    QuizAttempt[]
+  studyProgress   StudyProgress[]
+  flashcardProgress FlashcardProgress[]
+  availabilityRequests AvailabilityRequest[]
+  auditLogs       AuditLog[]
+  reservations    Reservation[]
+  stockAlerts     StockAlert[]
+  prescriptions   Prescription[]
+
+  @@index([role])
+}
+
+model PatientProfile {
+  id       String  @id @default(cuid())
+  userId   String  @unique
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  latitude  Float?
+  longitude Float?
+  address   String?
+  favorites MedicineFavorite[]
+}
+
+model StudentProfile {
+  id            String @id @default(cuid())
+  userId        String @unique
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college       String?
+  yearOfStudy   Int?
+}
+
+model DoctorProfile {
+  id                String  @id @default(cuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registrationNumber String?
+  specialization    String?
+  clinicName        String?
+}
+
+// ---------------------------------------------------------------------------
+// Pharmacies & manufacturers
+// ---------------------------------------------------------------------------
+
+model Pharmacy {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  licenseNumber      String
+  phone              String
+  address            String
+  city               String
+  pinCode            String
+  latitude           Float
+  longitude          Float
+  openingTime        String?
+  closingTime        String?
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  documents    PharmacyDocument[]
+  inventory    Inventory[]
+  availabilityResponses AvailabilityRequest[] @relation("PharmacyResponses")
+  reports      Report[]
+  reservations Reservation[]
+  stockAlerts  StockAlert[]
+
+  @@index([city, pinCode])
+  @@index([verificationStatus])
+}
+
+model PharmacyDocument {
+  id         String   @id @default(cuid())
+  pharmacyId String
+  pharmacy   Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  docType    String
+  fileUrl    String
+  uploadedAt DateTime @default(now())
+}
+
+model Manufacturer {
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  licenseNumber       String?
+  address             String?
+  verificationStatus  VerificationStatus @default(PENDING)
+  createdAt           DateTime @default(now())
+
+  medicines Medicine[]
+}
+
+// ---------------------------------------------------------------------------
+// Medicines
+// ---------------------------------------------------------------------------
+
+model Medicine {
+  id                  String              @id @default(cuid())
+  name                String
+  brandName           String?
+  sanskritName        String?
+  englishName         String?
+  kannadaName         String?
+  hindiName           String?
+  manufacturerId      String?
+  manufacturer        Manufacturer?       @relation(fields: [manufacturerId], references: [id])
+  dosageForm          DosageForm
+  formulationCategory FormulationCategory
+  description         String              @db.Text
+  traditionalIndications String?          @db.Text
+  rasa                String?
+  guna                String?
+  virya               String?
+  vipaka              String?
+  karma               String?
+  productLicenseNumber String?
+  productCode         String?             @unique
+  isVerifiedProduct   Boolean             @default(false)
+  isDemoData          Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  ingredients    MedicineIngredient[]
+  images         MedicineImage[]
+  batches        MedicineBatch[]
+  packageSizes   MedicinePackageSize[]
+  inventory      Inventory[]
+  classicalRefs  ClassicalReference[]
+  favorites      MedicineFavorite[]
+  reviews        Review[]
+  reports        Report[]
+  availabilityRequests AvailabilityRequest[]
+  relatedPlants  MedicinePlant[]
+  reservations   Reservation[]
+  stockAlerts    StockAlert[]
+
+  @@index([name])
+  @@index([formulationCategory])
+  @@index([productCode])
+}
+
+model MedicineIngredient {
+  id         String   @id @default(cuid())
+  medicineId String
+  medicine   Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  plantId    String?
+  plant      MedicinalPlant? @relation(fields: [plantId], references: [id])
+  name       String
+  quantity   String?
+}
+
+model MedicineImage {
+  id         String   @id @default(cuid())
+  medicineId String
+  medicine   Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  url        String
+  caption    String?
+}
+
+model MedicinePackageSize {
+  id         String   @id @default(cuid())
+  medicineId String
+  medicine   Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  size       String
+  unit       String
+}
+
+model MedicineBatch {
+  id              String    @id @default(cuid())
+  medicineId      String
+  medicine        Medicine  @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  batchNumber     String
+  manufactureDate DateTime?
+  expiryDate      DateTime?
+  createdAt       DateTime  @default(now())
+
+  inventory Inventory[]
+}
+
+model Inventory {
+  id           String        @id @default(cuid())
+  pharmacyId   String
+  pharmacy     Pharmacy      @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  medicineId   String
+  medicine     Medicine      @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  batchId      String?
+  batch        MedicineBatch? @relation(fields: [batchId], references: [id])
+  price        Decimal       @db.Decimal(10, 2)
+  stockQty     Int           @default(0)
+  inStock      Boolean       @default(true)
+  lastUpdated  DateTime      @updatedAt
+
+  @@unique([pharmacyId, medicineId])
+  @@index([medicineId, inStock])
+}
+
+model AvailabilityRequest {
+  id         String                     @id @default(cuid())
+  userId     String
+  user       User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medicineId String
+  medicine   Medicine                   @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  pharmacyId String?
+  pharmacy   Pharmacy?                  @relation("PharmacyResponses", fields: [pharmacyId], references: [id])
+  message    String?
+  status     AvailabilityRequestStatus  @default(OPEN)
+  createdAt  DateTime                   @default(now())
+}
+
+model Reservation {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medicineId      String
+  medicine        Medicine          @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  pharmacyId      String
+  pharmacy        Pharmacy          @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  quantity        Int               @default(1)
+  fulfillmentType FulfillmentType   @default(PICKUP)
+  deliveryAddress String?
+  status          ReservationStatus @default(PENDING)
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([pharmacyId, status])
+}
+
+model StockAlert {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medicineId String
+  medicine   Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  pharmacyId String?
+  pharmacy   Pharmacy? @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  notified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, medicineId, pharmacyId])
+}
+
+model Prescription {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  fileUrl     String
+  issuedBy    String?
+  issuedDate  DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model MedicineFavorite {
+  id         String         @id @default(cuid())
+  patientId  String
+  patient    PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medicineId String
+  medicine   Medicine       @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+
+  @@unique([patientId, medicineId])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  medicineId String
+  medicine   Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+}
+
+model Report {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medicineId   String?
+  medicine     Medicine?    @relation(fields: [medicineId], references: [id])
+  pharmacyId   String?
+  pharmacy     Pharmacy?    @relation(fields: [pharmacyId], references: [id])
+  reason       String       @db.Text
+  status       ReportStatus @default(OPEN)
+  createdAt    DateTime     @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Medicinal plants
+// ---------------------------------------------------------------------------
+
+model MedicinalPlant {
+  id               String   @id @default(cuid())
+  name             String
+  botanicalName    String?
+  sanskritName     String?
+  englishName      String?
+  kannadaName      String?
+  hindiName        String?
+  partsUsed        String?
+  description      String   @db.Text
+  ayurvedicProperties String? @db.Text
+  traditionalUses  String?  @db.Text
+  habitat          String?
+  isDemoData       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  images       PlantImage[]
+  ingredientIn MedicineIngredient[]
+  medicines    MedicinePlant[]
+  properties   AyurvedicProperty[]
+  classicalRefs ClassicalReference[]
+
+  @@index([name])
+}
+
+model PlantImage {
+  id      String         @id @default(cuid())
+  plantId String
+  plant   MedicinalPlant @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  url     String
+  caption String?
+}
+
+model MedicinePlant {
+  id         String         @id @default(cuid())
+  medicineId String
+  medicine   Medicine       @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  plantId    String
+  plant      MedicinalPlant @relation(fields: [plantId], references: [id], onDelete: Cascade)
+
+  @@unique([medicineId, plantId])
+}
+
+model AyurvedicProperty {
+  id      String          @id @default(cuid())
+  plantId String?
+  plant   MedicinalPlant? @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  rasa    String?
+  guna    String?
+  virya   String?
+  vipaka  String?
+  karma   String?
+}
+
+model ClassicalReference {
+  id         String          @id @default(cuid())
+  medicineId String?
+  medicine   Medicine?       @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  plantId    String?
+  plant      MedicinalPlant? @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  sourceText String
+  reference  String
+}
+
+// ---------------------------------------------------------------------------
+// BAMS learning center
+// ---------------------------------------------------------------------------
+
+model Subject {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?  @db.Text
+  orderIndex  Int      @default(0)
+
+  chapters Chapter[]
+}
+
+model Chapter {
+  id        String   @id @default(cuid())
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  title     String
+  orderIndex Int     @default(0)
+
+  studyMaterials StudyMaterial[]
+  quizzes        Quiz[]
+  flashcards     Flashcard[]
+  progress       StudyProgress[]
+}
+
+model StudyMaterial {
+  id         String   @id @default(cuid())
+  chapterId  String
+  chapter    Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  title      String
+  content    String   @db.Text
+  fileUrl    String?
+  createdAt  DateTime @default(now())
+}
+
+model StudyProgress {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapterId String
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  completed Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, chapterId])
+}
+
+model Quiz {
+  id        String   @id @default(cuid())
+  chapterId String
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  title     String
+
+  questions Question[]
+  attempts  QuizAttempt[]
+}
+
+model Question {
+  id            String   @id @default(cuid())
+  quizId        String
+  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  text          String   @db.Text
+  options       String[]
+  correctOption Int
+  explanation   String?  @db.Text
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  score     Int
+  total     Int
+  takenAt   DateTime @default(now())
+}
+
+model Flashcard {
+  id        String   @id @default(cuid())
+  chapterId String
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  front     String   @db.Text
+  back      String   @db.Text
+
+  progress FlashcardProgress[]
+}
+
+model FlashcardProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcardId String
+  flashcard   Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  known       Boolean   @default(false)
+  reviewedAt  DateTime  @updatedAt
+
+  @@unique([userId, flashcardId])
+}
+
+model Bookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetType String
+  targetId   String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, targetType, targetId])
+}
+
+// ---------------------------------------------------------------------------
+// Platform
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  admin     User     @relation(fields: [adminId], references: [id])
+  action    String
+  targetType String
+  targetId  String
+  details   String?  @db.Text
+  createdAt DateTime @default(now())
+}
